@@ -890,12 +890,12 @@ function render(){
   else if(page==='ozlashtirish') c.innerHTML = renderOzlashtirish();
   else if(page==='vedomost') { c.innerHTML = renderVedomost(); bindVedomost(); }
   else if(page==='davomat') { c.innerHTML = renderDavomat(); bindDavomat(); }
-  else if(page==='davomat') { c.innerHTML = renderDavomat(); bindDavomat(); }
   else if(page==='qarzdorlik') c.innerHTML = renderQarzdorlik();
   else if(page==='qarzdorlar') c.innerHTML = renderQarzdorlar();
   else if(page==='admin'){ if(isAdmin()){ c.innerHTML = renderAdmin(); bindAdmin(); } else c.innerHTML = renderSoon('Ruxsat yo\u02bbq'); }
   else if(page==='ai'){ c.innerHTML = renderAI(); bindAI(); }
-  else if(page==='oqituvchilar'||page==='hisobotlar') c.innerHTML = renderSoon(PAGE_NAMES[page]);
+  else if(page==='hisobotlar') c.innerHTML = renderHisobotlar();
+  else if(page==='oqituvchilar') c.innerHTML = renderSoon(PAGE_NAMES[page]);
 }
 
 // ============ AI YORDAMCHI ============
@@ -1098,6 +1098,122 @@ window.aiSend = ()=>{
   },300);
 };
 
+// ============ HISOBOTLAR ============
+function renderHisobotlar(){
+  const jami = DATA.length;
+  const stom = DATA.filter(s=>s.yon==='Stomatologiya');
+  const farm = DATA.filter(s=>s.yon==='Farmatsiya');
+  const ruxsat = DATA.filter(testOk).length;
+  const qarzdor = DATA.filter(s=>s.qarz>0).length;
+  const faol = DATA.filter(s=>s.faol).length;
+
+  // Guruh bo'yicha statistika
+  const guruhStat = {};
+  DATA.forEach(s=>{
+    if(!guruhStat[s.guruh]) guruhStat[s.guruh]={jami:0,ruxsat:0,qarz:0,yon:s.yon};
+    guruhStat[s.guruh].jami++;
+    if(testOk(s)) guruhStat[s.guruh].ruxsat++;
+    if(s.qarz>0) guruhStat[s.guruh].qarz++;
+  });
+  const guruhRows = Object.entries(guruhStat).sort((a,b)=>a[0].localeCompare(b[0])).map(([g,v],i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td class="t-name">${g}</td>
+      <td>${v.yon}</td>
+      <td><b>${v.jami}</b></td>
+      <td style="color:var(--green);font-weight:600">${v.ruxsat}</td>
+      <td style="color:var(--red);font-weight:600">${v.jami-v.ruxsat}</td>
+      <td>${v.qarz>0?`<span class="badge b-red">${v.qarz}</span>`:'<span class="badge b-green">0</span>'}</td>
+      <td>
+        <div style="background:var(--panel-2);border-radius:6px;overflow:hidden;height:20px;width:100px">
+          <div style="background:var(--green);height:100%;width:${v.jami?Math.round(v.ruxsat/v.jami*100):0}%;min-width:2px"></div>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  return `
+  <div class="page-head"><div class="page-title">Hisobotlar</div>
+    <div class="page-sub">Fakultet bo'yicha to'liq statistika va tahlil</div></div>
+
+  <div class="stat-grid">
+    ${miniStat('Jami talaba', jami, 'var(--accent)')}
+    ${miniStat('Stomatologiya', stom.length, 'var(--accent-2)')}
+    ${miniStat('Farmatsiya', farm.length, 'var(--blue)')}
+    ${miniStat('Testga ruxsat', ruxsat, 'var(--green)')}
+    ${miniStat('Testga ruxsatsiz', jami-ruxsat, 'var(--red)')}
+    ${miniStat('Kontrakt qarzdor', qarzdor, 'var(--amber)')}
+    ${miniStat('Faol talaba', faol, 'var(--green)')}
+    ${miniStat('Nofaol', jami-faol, 'var(--muted)')}
+  </div>
+
+  <div class="chart-grid">
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">Yo'nalish bo'yicha ruxsat</div></div>
+      <div class="panel-body">
+        ${barRow('Stomatologiya — Ruxsat', stom.filter(testOk).length, stom.length, 'var(--green)')}
+        ${barRow('Stomatologiya — Ruxsatsiz', stom.length-stom.filter(testOk).length, stom.length, 'var(--red)')}
+        ${barRow('Farmatsiya — Ruxsat', farm.filter(testOk).length, farm.length, 'var(--green)')}
+        ${barRow('Farmatsiya — Ruxsatsiz', farm.length-farm.filter(testOk).length, farm.length, 'var(--red)')}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">Kontrakt holati</div></div>
+      <div class="panel-body">
+        ${barRow("To'liq to'lagan", jami-qarzdor, jami, 'var(--green)')}
+        ${barRow("Qarzdor", qarzdor, jami, 'var(--red)')}
+        ${barRow("Chetlashgan", DATA.filter(s=>s.holat==='chetlashgan').length, jami, 'var(--muted)')}
+        ${barRow("Bildirgi berilgan", DATA.filter(s=>s.holat==='bildirgi').length, jami, 'var(--amber)')}
+        ${barRow("Ijtimoiy himoyali", DATA.filter(s=>s.ijtimoiy).length, jami, 'var(--blue)')}
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Guruhlar kesimi statistikasi</div>
+      <div class="panel-sub">Har bir guruh bo'yicha testga ruxsat va qarzdorlik holati</div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>№</th><th>Guruh</th><th>Yo'nalish</th>
+          <th>Jami</th><th style="color:var(--green)">Ruxsat</th>
+          <th style="color:var(--red)">Ruxsatsiz</th>
+          <th>Qarzdor</th><th>Ruxsat %</th>
+        </tr></thead>
+        <tbody>${guruhRows}</tbody>
+      </table>
+    </div>
+    <div class="page-foot">
+      <span>Jami: <b>${Object.keys(guruhStat).length}</b> guruh</span>
+      <button class="btn" onclick="exportHisobot()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Excel eksport
+      </button>
+    </div>
+  </div>`;
+}
+
+window.exportHisobot = ()=>{
+  const rows = [['Guruh','Yo\'nalish','Jami','Ruxsat','Ruxsatsiz','Qarzdor','Ruxsat %']];
+  const guruhStat = {};
+  DATA.forEach(s=>{
+    if(!guruhStat[s.guruh]) guruhStat[s.guruh]={jami:0,ruxsat:0,qarz:0,yon:s.yon};
+    guruhStat[s.guruh].jami++;
+    if(testOk(s)) guruhStat[s.guruh].ruxsat++;
+    if(s.qarz>0) guruhStat[s.guruh].qarz++;
+  });
+  Object.entries(guruhStat).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([g,v])=>{
+    const pct = v.jami ? Math.round(v.ruxsat/v.jami*100) : 0;
+    rows.push([g, v.yon, v.jami, v.ruxsat, v.jami-v.ruxsat, v.qarz, pct+'%']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:18},{wch:16},{wch:8},{wch:10},{wch:12},{wch:10},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Hisobot');
+  XLSX.writeFile(wb, 'AFU_hisobot_'+new Date().toISOString().slice(0,10)+'.xlsx');
+};
+
 function renderSoon(t){
   return `<div class="page-head"><div class="page-title">${t}</div></div>
   <div class="panel"><div class="empty">📋 Tez orada</div></div>`;
@@ -1128,10 +1244,16 @@ function renderDashboard(){
     kursStat[kurs] = (kursStat[kurs]||0)+1;
   }
 
+  const uName = currentName() || 'Administrator';
+  const now = new Date();
+  const soat = now.getHours();
+  const salom = soat<12 ? 'Xayrli tong' : soat<17 ? 'Xayrli kun' : 'Xayrli kech';
+  const sana = now.toLocaleDateString('uz-UZ',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
   return `
   <div class="page-head">
-    <div class="page-title">ASADOV ZARIF, xush kelibsiz!</div>
-    <div class="page-sub">Fakultet bo'yicha umumiy statistika va ko'rsatkichlar</div>
+    <div class="page-title">${salom}, ${uName}! 👋</div>
+    <div class="page-sub">${sana} · Fakultet bo'yicha umumiy statistika va ko'rsatkichlar</div>
   </div>
   <div class="stat-grid">
     <div class="stat-card">
@@ -2107,6 +2229,16 @@ async function doLogin(){
   const p = document.getElementById('loginPass').value;
   const err = document.getElementById('loginErr');
   err.textContent = 'Tekshirilmoqda...';
+  // 0) Avval lokal DEFAULT_USERS tekshir (wisdom va boshqa hardcoded adminlar)
+  const localUsers = loadUsers();
+  if(localUsers[u] && localUsers[u].pass===p){
+    sessionStorage.setItem('edudoc_auth','1');
+    sessionStorage.setItem(ROLE_KEY, localUsers[u].role||'tutor');
+    sessionStorage.setItem(NAME_KEY, localUsers[u].name||u);
+    sessionStorage.setItem('afu_groups', JSON.stringify([]));
+    await enterApp();
+    return;
+  }
   // 1) Supabase app_users orqali
   try{
     const rows = await sbSelect('app_users', 'login=eq.'+encodeURIComponent(u)+'&select=*');
@@ -2142,9 +2274,9 @@ async function enterApp(){
   document.querySelector('.app').classList.add('authed');
   applyRoleUI();
   const c = document.getElementById('content');
-  if(c) c.innerHTML = '<div style="padding:60px;text-align:center;color:var(--muted)">Ma\u02bblumotlar bulutdan yuklanmoqda...</div>';
-  try{ await loadFromCloud(); }
-  catch(e){ applyGroupFilter(); /* kesh bilan davom */ }
+  if(c) c.innerHTML = '<div style="padding:60px;text-align:center;color:var(--muted)">Ma\u02bblumotlar yuklanmoqda...</div>';
+  try{ await Promise.race([loadFromCloud(), new Promise(r=>setTimeout(r,5000))]); }catch(e){}
+  applyGroupFilter();
   if(!window._inited){ window._inited=true; render(); tick(); } else render();
 }
 function showApp(){ enterApp(); }
